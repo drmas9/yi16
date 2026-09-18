@@ -1,0 +1,29 @@
+[
+  {
+    "name": "自己的部门",
+    "status": "正在处理",
+    "skip_reason": "",
+    "key_results": [
+      {
+        "name": "后勤",
+        "progress": 0
+      },
+      {
+        "name": "信息",
+        "progress": 0
+      },
+      {
+        "name": "学习",
+        "progress": 0
+      }
+    ],
+    "deadline": "",
+    "create_time": "2026-09-18",
+    "progress_log": [
+      {
+        "date": "2026-09-18",
+        "value": 100.0
+      }
+    ]
+  }
+]
