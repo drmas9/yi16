@@ -1,0 +1,16 @@
+{
+  "name": "冷启动器 · 任务",
+  "short_name": "冷启动器",
+  "description": "本地离线可用的敏捷任务与长期任务管理",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1b1b1f",
+  "theme_color": "#1b1b1f",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

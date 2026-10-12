@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>冷启动器 · 任务</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#1b1b1f">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="冷启动器">
+<style>
+:root{--bg:#1b1b1f;--card:#28282e;--card2:#232329;--fg:#f2f2f5;--sec:#9a9aa5;--line:#3a3a42;--green:#34d399;--blue:#4a90ff;--red:#f87171;--gray:#6b7280}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:15px}
+header{position:sticky;top:0;z-index:10;background:var(--bg);padding:12px 14px 8px;border-bottom:1px solid var(--line)}
+h1{font-size:17px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline}
+h1 small{font-size:11px;color:var(--sec);font-weight:400}
+.tabs{display:flex;gap:8px}
+.tab{flex:1;text-align:center;padding:9px 0;border-radius:10px;background:var(--card2);color:var(--sec);border:1px solid transparent}
+.tab.on{background:#2f2f38;color:#fff;border-color:var(--line)}
+.sync{display:flex;gap:6px;margin-top:8px}
+.sync button{flex:1;font-size:12px;padding:6px 0;background:var(--card2);color:var(--sec)}
+main{padding:12px 14px 96px}
+.row{background:var(--card);border-radius:12px;padding:11px 12px;margin-bottom:9px;border:1px solid #33333b}
+.top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.text{flex:1;word-break:break-word;line-height:1.35}
+.meta{font-size:11px;color:var(--sec);margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.badge{font-size:11px;padding:2px 8px;border-radius:20px;color:#fff;white-space:nowrap}
+.acts{display:flex;gap:6px;margin-top:9px}
+button{font-family:inherit;font-size:13px;border:0;border-radius:9px;padding:7px 14px;background:#3a3a46;color:var(--fg)}
+button.p{background:var(--green);color:#08281c;font-weight:600}
+button.b{background:var(--blue);color:#fff}
+button.d{background:#3a2b2b;color:var(--red)}
+input,select{font-family:inherit;font-size:15px;width:100%;padding:9px 10px;border-radius:9px;border:1px solid var(--line);background:#1f1f25;color:var(--fg)}
+.edit{margin-top:9px;display:flex;flex-direction:column;gap:8px}
+.line{display:flex;gap:8px}
+.kr{font-size:12px;color:var(--sec);margin-top:5px;line-height:1.5}
+.addbar{position:fixed;left:0;right:0;bottom:0;background:#16161a;border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:8px}
+.addbar input{flex:1}
+.empty{color:var(--sec);text-align:center;padding:44px 0;font-size:13px}
+#toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%) translateY(12px);background:#0f0f13;border:1px solid var(--line);color:var(--fg);font-size:13px;padding:9px 16px;border-radius:20px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80%;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<header>
+<h1>冷启动器 · 任务 <small id="stat"></small></h1>
+<div class="tabs">
+<div class="tab on" id="tabAgile" onclick="switchTab('agile')">敏捷任务</div>
+<div class="tab" id="tabTrack" onclick="switchTab('track')">长期任务</div>
+</div>
+<div class="sync">
+<button onclick="exportAgile()">导出敏捷</button>
+<button onclick="exportTrack()">导出长期</button>
+<button onclick="document.getElementById('imp').click()">导入 JSON</button>
+<input id="imp" type="file" accept=".json,application/json" multiple style="display:none" onchange="importFiles(this.files)">
+</div>
+</header>
+<main id="list"></main>
+<div class="addbar">
+<input id="addInput" placeholder="输入任务，回车添加" onkeydown="if(event.key==='Enter')doAdd()">
+<button class="p" onclick="doAdd()">添加</button>
+</div>
+<div id="toast"></div>
+<script>
+/* ===== 数据层：全部保存在手机本地 localStorage，不再依赖电脑/网络 ===== */
+var KEY_AGILE='coldstart_agile_v1', KEY_TRACK='coldstart_track_v1';
+var S={tab:'agile',agile:[],track:[],edit:null};
+
+function _read(key){try{var v=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(v)?v:[]}catch(e){return []}}
+function _write(key,arr){localStorage.setItem(key,JSON.stringify(arr))}
+function _uid(){return (self.crypto&&crypto.randomUUID)?crypto.randomUUID().replace(/-/g,'').slice(0,12):Math.random().toString(16).slice(2,14)}
+function _pad(n){return (n<10?'0':'')+n}
+function _nowStr(){var d=new Date();return d.getFullYear()+'-'+_pad(d.getMonth()+1)+'-'+_pad(d.getDate())+' '+_pad(d.getHours())+':'+_pad(d.getMinutes())}
+function _today(){var d=new Date();return d.getFullYear()+'-'+_pad(d.getMonth()+1)+'-'+_pad(d.getDate())}
+/* 与桌面端 _normalize_tracking_obj 保持一致：补齐缺失字段 */
+function _normTrack(o){o=o||{};if(!o.id)o.id=_uid();if(!o.status)o.status=(o.key_results&&o.key_results.length)?'正在处理':'待办';if(o.skip_reason==null)o.skip_reason='';if(!o.key_results)o.key_results=[];if(o.deadline==null)o.deadline='';if(!o.create_time)o.create_time=_today();if(!o.progress_log)o.progress_log=[];return o}
+function _normAgile(o){o=o||{};if(!o.id)o.id=_uid();o.text=String(o.text==null?'':o.text).trim().slice(0,15);if(o.created_at==null)o.created_at='';return o}
+
+/* 本地版 api()：签名与原来的网络版完全一致，界面代码无需改动 */
+function api(path,method,body){
+  method=(method||'GET').toUpperCase(); body=body||{};
+  var parts=path.replace(/^\//,'').split('/');       /* ['api','agile'] 或 ['api','agile','<id>'] */
+  var kind=parts[1], id=parts[2]!=null?decodeURIComponent(parts[2]):null;
+  var key=kind==='agile'?KEY_AGILE:KEY_TRACK;
+  var STATUSES=['待办','正在处理','完成','跳过'];
+  return new Promise(function(resolve,reject){
+    if(kind!=='agile'&&kind!=='tracking'){return reject({error:'接口不存在'})}
+    var arr=_read(key);
+    if(method==='GET'){return resolve(arr)}
+
+    if(method==='POST'){
+      var text=String(body.text!=null?body.text:body.name).trim();
+      if(!text)return reject({error:'内容不能为空'});
+      var item;
+      if(kind==='agile'){item={id:_uid(),text:text.slice(0,15),created_at:_nowStr()}}
+      else{item=_normTrack({id:_uid(),name:text,status:'待办',skip_reason:'',key_results:[],deadline:String(body.deadline||'').trim(),create_time:_today(),progress_log:[{date:_today(),value:100.0}]})}
+      arr.push(item);_write(key,arr);return resolve(item);
+    }
+
+    if(method==='PUT'){
+      for(var i=0;i<arr.length;i++){
+        if(arr[i].id===id){
+          if(kind==='agile'){
+            var t=String(body.text||'').trim();if(!t)return reject({error:'任务内容不能为空'});
+            arr[i].text=t.slice(0,15);
+          }else{
+            if(String(body.name||'').trim())arr[i].name=String(body.name).trim();
+            if(body.status!=null&&STATUSES.indexOf(String(body.status))>=0)arr[i].status=String(body.status);
+            if(body.deadline!=null)arr[i].deadline=String(body.deadline).trim();
+            if(body.skip_reason!=null)arr[i].skip_reason=String(body.skip_reason).trim();
+          }
+          _write(key,arr);return resolve(arr[i]);
+        }
+      }
+      return reject({error:'未找到该任务'});
+    }
+
+    if(method==='DELETE'){
+      var out=arr.filter(function(x){return x.id!==id});
+      _write(key,out);return resolve({ok:out.length<arr.length});
+    }
+    reject({error:'不支持的请求'});
+  });
+}
+
+/* ===== 界面层：与原手机端页面保持一致 ===== */
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function progress(o){var k=o.key_results||[];if(!k.length)return 100;var a=0;for(var i=0;i<k.length;i++){a+=(+k[i].progress||0)}a=a/k.length;return Math.round((100-a*1.25)*10)/10}
+var SC={'待办':'#6b7280','正在处理':'#4a90ff','完成':'#34d399','跳过':'#f87171'};
+function toast(msg){var d=document.getElementById('toast');d.textContent=msg;d.className='show';clearTimeout(d._t);d._t=setTimeout(function(){d.className=''},1800)}
+function switchTab(t){S.tab=t;S.edit=null;document.getElementById('tabAgile').className='tab'+(t==='agile'?' on':'');document.getElementById('tabTrack').className='tab'+(t==='track'?' on':'');document.getElementById('addInput').placeholder=(t==='agile'?'输入敏捷任务，回车添加':'输入长期目标，回车添加');render()}
+function load(){return Promise.all([api('/api/agile').then(function(d){S.agile=d}),api('/api/tracking').then(function(d){S.track=d})])}
+function render(){
+  var el=document.getElementById('list'),html='';
+  if(S.tab==='agile'){
+    if(!S.agile.length){html='<div class="empty">还没有敏捷任务</div>'}
+    S.agile.forEach(function(t){
+      var ed=S.edit&&S.edit.type==='agile'&&S.edit.id===t.id;
+      html+='<div class="row">';
+      if(ed){
+        html+='<div class="edit"><input id="ei" maxlength="15" value="'+esc(t.text)+'">'
+            +'<div class="line"><button class="p" onclick="saveAgile(\''+t.id+'\')">保存</button>'
+            +'<button onclick="cancelEdit()">取消</button></div></div>';
+      }else{
+        html+='<div class="top"><div class="text">'+esc(t.text)+'</div></div>'
+            +'<div class="meta"><span>🕒 添加时间 '+esc(t.created_at||'无记录')+'</span></div>'
+            +'<div class="acts"><button class="b" onclick="editAgile(\''+t.id+'\')">编辑</button>'
+            +'<button class="d" onclick="delAgile(\''+t.id+'\')">删除</button></div>';
+      }
+      html+='</div>';
+    });
+  }else{
+    if(!S.track.length){html='<div class="empty">还没有长期任务</div>'}
+    S.track.forEach(function(o){
+      var ed=S.edit&&S.edit.type==='track'&&S.edit.id===o.id;
+      html+='<div class="row">';
+      if(ed){
+        var opts=['待办','正在处理','完成','跳过'].map(function(s){return '<option'+(s===o.status?' selected':'')+'>'+s+'</option>'}).join('');
+        html+='<div class="edit"><input id="ei" value="'+esc(o.name)+'">'
+            +'<div class="line"><select id="es">'+opts+'</select></div>'
+            +'<input id="ed" placeholder="截止日期（可留空）" value="'+esc(o.deadline||'')+'">'
+            +'<div class="line"><button class="p" onclick="saveTrack(\''+o.id+'\')">保存</button>'
+            +'<button onclick="cancelEdit()">取消</button></div></div>';
+      }else{
+        html+='<div class="top"><div class="text">'+esc(o.name)+'</div>'
+            +'<span class="badge" style="background:'+(SC[o.status]||'#6b7280')+'">'+esc(o.status)+'</span></div>'
+            +'<div class="meta"><span>🕒 创建 '+esc(o.create_time||'')+'</span>'
+            +(o.deadline?'<span>📅 '+esc(o.deadline)+'</span>':'')
+            +'<span>进度 '+progress(o)+'%</span></div>';
+        var k=o.key_results||[];
+        if(k.length){html+='<div class="kr">关键指标：'+k.map(function(x){return esc(x.name)+' '+x.progress+'%'}).join('、')+'</div>'}
+        html+='<div class="acts"><button class="b" onclick="editTrack(\''+o.id+'\')">编辑</button>'
+            +'<button class="d" onclick="delTrack(\''+o.id+'\')">删除</button></div>';
+      }
+      html+='</div>';
+    });
+  }
+  el.innerHTML=html;
+  document.getElementById('stat').textContent='敏捷 '+S.agile.length+' · 长期 '+S.track.length;
+  if(S.edit){setTimeout(function(){var x=document.getElementById('ei');if(x){x.focus()}},0)}
+}
+function doAdd(){
+  var inp=document.getElementById('addInput'),v=inp.value.trim();
+  if(!v)return;
+  var p=S.tab==='agile'?api('/api/agile','POST',{text:v}):api('/api/tracking','POST',{name:v});
+  p.then(function(){inp.value='';return load()}).then(render).catch(function(e){toast((e&&e.error)||'添加失败')});
+}
+function editAgile(id){S.edit={type:'agile',id:id};render()}
+function editTrack(id){S.edit={type:'track',id:id};render()}
+function cancelEdit(){S.edit=null;render()}
+function saveAgile(id){var v=document.getElementById('ei').value.trim();if(!v)return;
+  api('/api/agile/'+encodeURIComponent(id),'PUT',{text:v}).then(function(){S.edit=null;return load()}).then(render).catch(function(e){toast((e&&e.error)||'保存失败')})}
+function saveTrack(id){var v=document.getElementById('ei').value.trim();if(!v){toast('名称不能为空');return}
+  var st=document.getElementById('es').value,dl=document.getElementById('ed').value.trim();
+  api('/api/tracking/'+encodeURIComponent(id),'PUT',{name:v,status:st,deadline:dl}).then(function(){S.edit=null;return load()}).then(render).catch(function(e){toast((e&&e.error)||'保存失败')})}
+function delAgile(id){api('/api/agile/'+encodeURIComponent(id),'DELETE').then(load).then(render).catch(function(e){toast((e&&e.error)||'删除失败')})}
+function delTrack(id){api('/api/tracking/'+encodeURIComponent(id),'DELETE').then(load).then(render).catch(function(e){toast((e&&e.error)||'删除失败')})}
+function refresh(){load().then(render).catch(function(){})}
+
+/* ===== 与电脑手动同步：导出/导入 JSON ===== */
+function _download(filename,obj){
+  var blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
+}
+function exportAgile(){_download('agile_tasks.json',_read(KEY_AGILE));toast('已导出 agile_tasks.json')}
+function exportTrack(){_download('okr_data.json',_read(KEY_TRACK));toast('已导出 okr_data.json')}
+/* 导入：按 id 合并（同 id 覆盖，新 id 追加），不删除手机现有数据 */
+function _merge(key,items){
+  var arr=_read(key),idx={},n=0;
+  arr.forEach(function(x,i){idx[x.id]=i});
+  items.forEach(function(raw){
+    var it=key===KEY_AGILE?_normAgile(raw):_normTrack(raw);
+    if(!it.id||(key===KEY_AGILE&&!it.text))return;
+    if(idx[it.id]!=null){arr[idx[it.id]]=it}else{idx[it.id]=arr.length;arr.push(it)}
+    n++;
+  });
+  _write(key,arr);return n;
+}
+function importFiles(files){
+  if(!files||!files.length)return;
+  var jobs=[].map.call(files,function(f){return f.text().then(function(txt){return {name:f.name,data:JSON.parse(txt)}})});
+  Promise.all(jobs).then(function(list){
+    var na=0,nt=0;
+    list.forEach(function(f){
+      var d=f.data;
+      if(Array.isArray(d)){                      /* 桌面端原始文件 */
+        if(f.name.toLowerCase().indexOf('okr')>=0){nt+=_merge(KEY_TRACK,d)}
+        else if(f.name.toLowerCase().indexOf('agile')>=0){na+=_merge(KEY_AGILE,d)}
+        else na+=_merge(KEY_AGILE,d);
+      }else if(d&&typeof d==='object'){
+        if(Array.isArray(d.agile)){na+=_merge(KEY_AGILE,d.agile)}
+        if(Array.isArray(d.track)){nt+=_merge(KEY_TRACK,d.track)}
+      }
+    });
+    return load().then(render).then(function(){toast('导入完成：敏捷 '+na+' 条，长期 '+nt+' 条')});
+  }).catch(function(){toast('导入失败，请检查 JSON 文件')});
+  document.getElementById('imp').value='';
+}
+
+/* 首次进入即加载；每 6 秒静默刷新（多标签/多窗口同步），编辑中不打扰 */
+load().then(render);
+setInterval(function(){if(!S.edit&&document.visibilityState==='visible')refresh()},6000);
+
+/* 注册 Service Worker，实现离线可用与“添加到主屏” */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(){})});
+}
+</script>
+</body>
+</html>
