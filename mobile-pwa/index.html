@@ -40,6 +40,9 @@ input,select{font-family:inherit;font-size:15px;width:100%;padding:9px 10px;bord
 .addbar{position:fixed;left:0;right:0;bottom:0;background:#16161a;border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:8px}
 .addbar input{flex:1}
 .empty{color:var(--sec);text-align:center;padding:44px 0;font-size:13px}
+.panel{display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:10px;background:var(--card2);border-radius:10px}
+.panel .line{display:flex;gap:8px}
+.panel button{padding:8px 0}
 #toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%) translateY(12px);background:#0f0f13;border:1px solid var(--line);color:var(--fg);font-size:13px;padding:9px 16px;border-radius:20px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80%;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
@@ -55,7 +58,18 @@ input,select{font-family:inherit;font-size:15px;width:100%;padding:9px 10px;bord
 <button onclick="exportAgile()">导出敏捷</button>
 <button onclick="exportTrack()">导出长期</button>
 <button onclick="document.getElementById('imp').click()">导入 JSON</button>
+<button onclick="toggleSyncPanel()">同步设置</button>
 <input id="imp" type="file" accept=".json,application/json" multiple style="display:none" onchange="importFiles(this.files)">
+</div>
+<div id="syncPanel" class="panel" style="display:none">
+<input id="cfgToken" placeholder="GitHub 令牌（粘贴一次，自动记住）">
+<div class="line"><input id="cfgOwner" placeholder="用户名" value="drmas9">
+<input id="cfgRepo" placeholder="仓库名" value="yi16"></div>
+<div class="line"><input id="cfgPath" placeholder="数据文件路径" value="data/sync.json">
+<input id="cfgBranch" placeholder="分支" value="main"></div>
+<div class="line"><button class="p" onclick="saveCfg()">保存并同步</button>
+<button class="b" onclick="syncNow(false)">立即同步</button></div>
+<div id="syncStatus" class="meta"></div>
 </div>
 </header>
 <main id="list"></main>
@@ -67,6 +81,10 @@ input,select{font-family:inherit;font-size:15px;width:100%;padding:9px 10px;bord
 <script>
 /* ===== 数据层：全部保存在手机本地 localStorage，不再依赖电脑/网络 ===== */
 var KEY_AGILE='coldstart_agile_v1', KEY_TRACK='coldstart_track_v1';
+/* 删除墓碑：记录被删掉的 id 与删除时间，避免另一端同步时把已删的任务又带回来 */
+var KEY_DEL_A='coldstart_del_agile_v1', KEY_DEL_T='coldstart_del_track_v1';
+/* 同步配置：GitHub 数据箱的地址与令牌 */
+var KEY_CFG='coldstart_sync_cfg_v1';
 var S={tab:'agile',agile:[],track:[],edit:null};
 
 function _read(key){try{var v=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(v)?v:[]}catch(e){return []}}
@@ -76,8 +94,12 @@ function _pad(n){return (n<10?'0':'')+n}
 function _nowStr(){var d=new Date();return d.getFullYear()+'-'+_pad(d.getMonth()+1)+'-'+_pad(d.getDate())+' '+_pad(d.getHours())+':'+_pad(d.getMinutes())}
 function _today(){var d=new Date();return d.getFullYear()+'-'+_pad(d.getMonth()+1)+'-'+_pad(d.getDate())}
 /* 与桌面端 _normalize_tracking_obj 保持一致：补齐缺失字段 */
-function _normTrack(o){o=o||{};if(!o.id)o.id=_uid();if(!o.status)o.status=(o.key_results&&o.key_results.length)?'正在处理':'待办';if(o.skip_reason==null)o.skip_reason='';if(!o.key_results)o.key_results=[];if(o.deadline==null)o.deadline='';if(!o.create_time)o.create_time=_today();if(!o.progress_log)o.progress_log=[];return o}
-function _normAgile(o){o=o||{};if(!o.id)o.id=_uid();o.text=String(o.text==null?'':o.text).trim().slice(0,15);if(o.created_at==null)o.created_at='';return o}
+function _normTrack(o){o=o||{};if(!o.id)o.id=_uid();if(!o.status)o.status=(o.key_results&&o.key_results.length)?'正在处理':'待办';if(o.skip_reason==null)o.skip_reason='';if(!o.key_results)o.key_results=[];if(o.deadline==null)o.deadline='';if(!o.create_time)o.create_time=_today();if(!o.progress_log)o.progress_log=[];if(o.updated_at==null)o.updated_at=0;return o}
+function _normAgile(o){o=o||{};if(!o.id)o.id=_uid();o.text=String(o.text==null?'':o.text).trim().slice(0,15);if(o.created_at==null)o.created_at='';if(o.updated_at==null)o.updated_at=0;return o}
+/* 当前时间戳（毫秒），用于"谁更新谁赢"的合并判断 */
+function _now(){return Date.now()}
+/* 记录一条删除墓碑 */
+function _tombstone(key,id){var d=_read(key);d.push({id:id,deleted_at:_now()});_write(key,d)}
 
 /* 本地版 api()：签名与原来的网络版完全一致，界面代码无需改动 */
 function api(path,method,body){
@@ -97,6 +119,7 @@ function api(path,method,body){
       var item;
       if(kind==='agile'){item={id:_uid(),text:text.slice(0,15),created_at:_nowStr()}}
       else{item=_normTrack({id:_uid(),name:text,status:'待办',skip_reason:'',key_results:[],deadline:String(body.deadline||'').trim(),create_time:_today(),progress_log:[{date:_today(),value:100.0}]})}
+      item.updated_at=_now();
       arr.push(item);_write(key,arr);return resolve(item);
     }
 
@@ -112,6 +135,7 @@ function api(path,method,body){
             if(body.deadline!=null)arr[i].deadline=String(body.deadline).trim();
             if(body.skip_reason!=null)arr[i].skip_reason=String(body.skip_reason).trim();
           }
+          arr[i].updated_at=_now();
           _write(key,arr);return resolve(arr[i]);
         }
       }
@@ -120,6 +144,7 @@ function api(path,method,body){
 
     if(method==='DELETE'){
       var out=arr.filter(function(x){return x.id!==id});
+      if(out.length<arr.length)_tombstone(kind==='agile'?KEY_DEL_A:KEY_DEL_T,id);
       _write(key,out);return resolve({ok:out.length<arr.length});
     }
     reject({error:'不支持的请求'});
@@ -186,19 +211,19 @@ function doAdd(){
   var inp=document.getElementById('addInput'),v=inp.value.trim();
   if(!v)return;
   var p=S.tab==='agile'?api('/api/agile','POST',{text:v}):api('/api/tracking','POST',{name:v});
-  p.then(function(){inp.value='';return load()}).then(render).catch(function(e){toast((e&&e.error)||'添加失败')});
+  p.then(function(){inp.value='';return load()}).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'添加失败')});
 }
 function editAgile(id){S.edit={type:'agile',id:id};render()}
 function editTrack(id){S.edit={type:'track',id:id};render()}
 function cancelEdit(){S.edit=null;render()}
 function saveAgile(id){var v=document.getElementById('ei').value.trim();if(!v)return;
-  api('/api/agile/'+encodeURIComponent(id),'PUT',{text:v}).then(function(){S.edit=null;return load()}).then(render).catch(function(e){toast((e&&e.error)||'保存失败')})}
+  api('/api/agile/'+encodeURIComponent(id),'PUT',{text:v}).then(function(){S.edit=null;return load()}).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'保存失败')})}
 function saveTrack(id){var v=document.getElementById('ei').value.trim();if(!v){toast('名称不能为空');return}
   var st=document.getElementById('es').value,dl=document.getElementById('ed').value.trim();
-  api('/api/tracking/'+encodeURIComponent(id),'PUT',{name:v,status:st,deadline:dl}).then(function(){S.edit=null;return load()}).then(render).catch(function(e){toast((e&&e.error)||'保存失败')})}
-function delAgile(id){api('/api/agile/'+encodeURIComponent(id),'DELETE').then(load).then(render).catch(function(e){toast((e&&e.error)||'删除失败')})}
-function delTrack(id){api('/api/tracking/'+encodeURIComponent(id),'DELETE').then(load).then(render).catch(function(e){toast((e&&e.error)||'删除失败')})}
-function refresh(){load().then(render).catch(function(){})}
+  api('/api/tracking/'+encodeURIComponent(id),'PUT',{name:v,status:st,deadline:dl}).then(function(){S.edit=null;return load()}).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'保存失败')})}
+function delAgile(id){api('/api/agile/'+encodeURIComponent(id),'DELETE').then(load).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'删除失败')})}
+function delTrack(id){api('/api/tracking/'+encodeURIComponent(id),'DELETE').then(load).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'删除失败')})}
+function refresh(){load().then(render).then(function(){syncNow(true)}).catch(function(){})}
 
 /* ===== 与电脑手动同步：导出/导入 JSON ===== */
 function _download(filename,obj){
@@ -242,9 +267,92 @@ function importFiles(files){
   document.getElementById('imp').value='';
 }
 
-/* 首次进入即加载；每 6 秒静默刷新（多标签/多窗口同步），编辑中不打扰 */
+/* ===== 自动同步：以 GitHub 仓库当"数据箱"，有网即自动合并 ===== */
+function _cfg(){try{var c=JSON.parse(localStorage.getItem(KEY_CFG)||'{}');return c&&typeof c==='object'?c:{}}catch(e){return {}}}
+function _saveCfg(c){localStorage.setItem(KEY_CFG,JSON.stringify(c))}
+/* UTF-8 与 Base64 互转（GitHub API 用 base64 传文件内容） */
+function _utf8b64(str){var b=new TextEncoder().encode(str),s='';for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s)}
+function _b64utf8(b64){var s=atob(String(b64).replace(/\s/g,'')),a=new Uint8Array(s.length);for(var i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return new TextDecoder().decode(a)}
+/* 合并两份列表：按 id + updated_at 取最新；再按删除墓碑剔除已被删的项 */
+function _mergeLists(localItems,remoteItems,localDel,remoteDel){
+  var at={};
+  function putItems(arr){(arr||[]).forEach(function(it){if(!it||!it.id)return;var ts=+(it.updated_at||0),cur=at[it.id];if(!cur||+(cur.updated_at||0)<ts)at[it.id]=it})}
+  putItems(localItems);putItems(remoteItems);
+  var del={};
+  function putDel(arr){(arr||[]).forEach(function(d){if(!d||!d.id)return;var t=+(d.deleted_at||0);if(del[d.id]==null||del[d.id]<t)del[d.id]=t})}
+  putDel(localDel);putDel(remoteDel);
+  Object.keys(at).forEach(function(id){if(del[id]!=null&&(+(at[id].updated_at||0))<=del[id])delete at[id]});
+  var items=[],deleted=[];
+  Object.keys(at).forEach(function(id){items.push(at[id])});
+  Object.keys(del).forEach(function(id){deleted.push({id:id,deleted_at:del[id]})});
+  return {items:items,deleted:deleted};
+}
+function _setSyncStatus(t){var el=document.getElementById('syncStatus');if(el)el.textContent=t}
+var _syncing=false;
+/* 同步一次：拉取云端 → 与本地合并 → 回推云端 */
+function syncNow(silent){
+  var cfg=_cfg();
+  if(!cfg.token){if(!silent)toast('请先点"同步设置"填写令牌');return Promise.resolve()}
+  if(_syncing)return Promise.resolve();
+  _syncing=true;_setSyncStatus('同步中…');
+  var base='https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+cfg.path;
+  var headers={'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json'};
+  function readRemote(){
+    return fetch(base+'?ref='+encodeURIComponent(cfg.branch)+'&_='+Date.now(),{headers:headers}).then(function(r){
+      if(r.status===404)return {data:null,sha:null};      /* 首次：云端还没有文件 */
+      if(!r.ok)throw new Error('读取失败 HTTP '+r.status);
+      return r.json().then(function(j){return {data:JSON.parse(_b64utf8(j.content||'')),sha:j.sha}});
+    });
+  }
+  function writeRemote(doc,sha){
+    var body={message:'sync '+new Date().toISOString(),content:_utf8b64(JSON.stringify(doc)),branch:cfg.branch};
+    if(sha)body.sha=sha;                                  /* 有 sha 表示更新已有文件 */
+    return fetch(base,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},headers),body:JSON.stringify(body)});
+  }
+  return readRemote().then(function(rem){
+    var r=rem.data||{};
+    var a=_mergeLists(_read(KEY_AGILE),r.agile,_read(KEY_DEL_A),r.deleted_agile);
+    var t=_mergeLists(_read(KEY_TRACK),r.track,_read(KEY_DEL_T),r.deleted_track);
+    _write(KEY_AGILE,a.items);_write(KEY_DEL_A,a.deleted);
+    _write(KEY_TRACK,t.items);_write(KEY_DEL_T,t.deleted);
+    var doc={agile:a.items,track:t.items,deleted_agile:a.deleted,deleted_track:t.deleted,version:+((r.version||0)+1),updated_at:_now()};
+    return writeRemote(doc,rem.sha).then(function(resp){
+      if(resp.status===409){_syncing=false;return syncNow(silent)}   /* 版本冲突：重来一次 */
+      if(!resp.ok)throw new Error('写入失败 HTTP '+resp.status);
+      return load().then(render).then(function(){_setSyncStatus('已同步 '+new Date().toLocaleTimeString());if(!silent)toast('同步完成')});
+    });
+  }).catch(function(e){_setSyncStatus('同步失败：'+(e.message||e));if(!silent)toast('同步失败：'+(e.message||e))})
+   .then(function(){_syncing=false});
+}
+function toggleSyncPanel(){
+  var p=document.getElementById('syncPanel'),c=_cfg();
+  if(p.style.display==='none'){
+    document.getElementById('cfgToken').value=c.token||'';
+    if(c.owner)document.getElementById('cfgOwner').value=c.owner;
+    if(c.repo)document.getElementById('cfgRepo').value=c.repo;
+    if(c.path)document.getElementById('cfgPath').value=c.path;
+    if(c.branch)document.getElementById('cfgBranch').value=c.branch;
+    p.style.display='flex';
+    _setSyncStatus(c.token?'已配置，可点"立即同步"':'尚未配置令牌');
+  }else{p.style.display='none'}
+}
+function saveCfg(){
+  var c={token:document.getElementById('cfgToken').value.trim(),
+         owner:document.getElementById('cfgOwner').value.trim()||'drmas9',
+         repo:document.getElementById('cfgRepo').value.trim()||'yi16',
+         path:document.getElementById('cfgPath').value.trim()||'data/sync.json',
+         branch:document.getElementById('cfgBranch').value.trim()||'main'};
+  _saveCfg(c);toast('已保存，开始同步');syncNow(false);
+}
+
+/* 首次进入即加载；每 6 秒静默刷新界面 */
 load().then(render);
 setInterval(function(){if(!S.edit&&document.visibilityState==='visible')refresh()},6000);
+/* 有网时自动同步：启动后、回到前台时、以及每 30 秒各尝试一次 */
+syncNow(true);
+setInterval(function(){if(document.visibilityState==='visible')syncNow(true)},30000);
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')syncNow(true)});
+window.addEventListener('online',function(){syncNow(true)});
 
 /* 注册 Service Worker，实现离线可用与“添加到主屏” */
 if('serviceWorker' in navigator){

@@ -1,5 +1,5 @@
 /* Service Worker：缓存全部静态资源，断网也能打开 */
-var CACHE = 'coldstart-mobile-v1';
+var CACHE = 'coldstart-mobile-v2';
 var ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
@@ -22,6 +22,9 @@ self.addEventListener('activate', function (e) {
 
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
+  // 只接管本站静态资源；GitHub API 等跨域请求交给浏览器直连，避免被缓存成旧数据
+  var u = new URL(e.request.url);
+  if (u.origin !== self.location.origin) return;
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then(function (cached) {
       if (cached) return cached;
