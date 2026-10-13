@@ -287,6 +287,23 @@ function _mergeLists(localItems,remoteItems,localDel,remoteDel){
   Object.keys(del).forEach(function(id){deleted.push({id:id,deleted_at:del[id]})});
   return {items:items,deleted:deleted};
 }
+/* 规范化字符串：忽略 updated_at，并对键排序，用于判断"内容是否真的变了" */
+function _canon(v){
+  if(v===null||typeof v!=='object')return JSON.stringify(v);
+  if(Array.isArray(v))return '['+v.map(_canon).join(',')+']';
+  var ks=Object.keys(v).filter(function(k){return k!=='updated_at'}).sort();
+  return '{'+ks.map(function(k){return JSON.stringify(k)+':'+_canon(v[k])}).join(',')+'}';
+}
+function _snapItems(arr){
+  var a=(arr||[]).filter(function(x){return x&&x.id});
+  a.sort(function(p,q){return p.id<q.id?-1:(p.id>q.id?1:0)});
+  return JSON.stringify(a.map(_canon));
+}
+function _snapDel(list){
+  var m={};(list||[]).forEach(function(d){if(d&&d.id)m[d.id]=Math.max(m[d.id]||0,+(d.deleted_at||0))});
+  var ks=Object.keys(m).sort(),o={};ks.forEach(function(k){o[k]=m[k]});
+  return JSON.stringify(o);
+}
 function _setSyncStatus(t){var el=document.getElementById('syncStatus');if(el)el.textContent=t}
 var _syncing=false;
 /* 同步一次：拉取云端 → 与本地合并 → 回推云端 */
@@ -315,11 +332,19 @@ function syncNow(silent){
     var t=_mergeLists(_read(KEY_TRACK),r.track,_read(KEY_DEL_T),r.deleted_track);
     _write(KEY_AGILE,a.items);_write(KEY_DEL_A,a.deleted);
     _write(KEY_TRACK,t.items);_write(KEY_DEL_T,t.deleted);
+    var remote={agile:r.agile||[],track:r.track||[],deleted_agile:r.deleted_agile||[],deleted_track:r.deleted_track||[]};
+    /* 只有合并结果和云端确实不同才回推，避免每次同步都产生一条无意义的提交 */
+    var need=(_snapItems(a.items)!==_snapItems(remote.agile))
+          ||(_snapItems(t.items)!==_snapItems(remote.track))
+          ||(_snapDel(a.deleted)!==_snapDel(remote.deleted_agile))
+          ||(_snapDel(t.deleted)!==_snapDel(remote.deleted_track));
+    function done(msg){return load().then(render).then(function(){_setSyncStatus(msg+' '+new Date().toLocaleTimeString());if(!silent)toast(msg)})}
+    if(!need)return done('已是最新');
     var doc={agile:a.items,track:t.items,deleted_agile:a.deleted,deleted_track:t.deleted,version:+((r.version||0)+1),updated_at:_now()};
     return writeRemote(doc,rem.sha).then(function(resp){
       if(resp.status===409){_syncing=false;return syncNow(silent)}   /* 版本冲突：重来一次 */
       if(!resp.ok)throw new Error('写入失败 HTTP '+resp.status);
-      return load().then(render).then(function(){_setSyncStatus('已同步 '+new Date().toLocaleTimeString());if(!silent)toast('同步完成')});
+      return done('已同步');
     });
   }).catch(function(e){_setSyncStatus('同步失败：'+(e.message||e));if(!silent)toast('同步失败：'+(e.message||e))})
    .then(function(){_syncing=false});
