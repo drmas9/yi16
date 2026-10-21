@@ -39,6 +39,14 @@ input,select{font-family:inherit;font-size:15px;width:100%;padding:9px 10px;bord
 .kr{font-size:12px;color:var(--sec);margin-top:5px;line-height:1.5}
 .addbar{position:fixed;left:0;right:0;bottom:0;background:#16161a;border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:8px}
 .addbar input{flex:1}
+.fab{position:fixed;right:14px;bottom:74px;z-index:12;width:52px;height:52px;border-radius:50%;background:var(--blue);color:#fff;font-size:22px;line-height:52px;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,.45);padding:0}
+.sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:none;align-items:flex-end}
+.sheet.on{display:flex}
+.sheet .card{width:100%;background:var(--card);border-radius:16px 16px 0 0;padding:16px 14px 20px;display:flex;flex-direction:column;gap:10px;max-height:86vh;overflow:auto}
+.sheet h3{margin:0 0 2px;font-size:15px}
+.quick{display:flex;gap:6px;flex-wrap:wrap}
+.quick button{flex:1;font-size:12px;padding:7px 0;background:#33333d;color:var(--fg);white-space:nowrap}
+.hint{font-size:12px;color:var(--sec);line-height:1.4}
 .empty{color:var(--sec);text-align:center;padding:44px 0;font-size:13px}
 .panel{display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:10px;background:var(--card2);border-radius:10px}
 .panel .line{display:flex;gap:8px}
@@ -77,6 +85,26 @@ input,select{font-family:inherit;font-size:15px;width:100%;padding:9px 10px;bord
 <input id="addInput" placeholder="输入任务，回车添加" onkeydown="if(event.key==='Enter')doAdd()">
 <button class="p" onclick="doAdd()">添加</button>
 </div>
+<button class="fab" onclick="openRemind()">⏰</button>
+<div id="remindSheet" class="sheet" onclick="if(event.target===this)closeRemind()">
+<div class="card">
+<h3>设置任务提醒</h3>
+<div class="hint">到点后由飞书群机器人推送锁屏提醒</div>
+<select id="rmTask" onchange="onRmTaskChange()"></select>
+<input id="rmTime" type="datetime-local">
+<div class="quick">
+<button onclick="quickRemind(60)">1 小时后</button>
+<button onclick="quickRemind('tonight')">今晚 20:00</button>
+<button onclick="quickRemind('morning')">明早 9:00</button>
+</div>
+<div class="hint" id="rmNow"></div>
+<div class="line">
+<button class="p" onclick="saveRemind()">保存提醒</button>
+<button onclick="clearRemind()">清除</button>
+<button onclick="closeRemind()">取消</button>
+</div>
+</div>
+</div>
 <div id="toast"></div>
 <script>
 /* ===== 数据层：全部保存在手机本地 localStorage，不再依赖电脑/网络 ===== */
@@ -95,7 +123,7 @@ function _nowStr(){var d=new Date();return d.getFullYear()+'-'+_pad(d.getMonth()
 function _today(){var d=new Date();return d.getFullYear()+'-'+_pad(d.getMonth()+1)+'-'+_pad(d.getDate())}
 /* 与桌面端 _normalize_tracking_obj 保持一致：补齐缺失字段 */
 function _normTrack(o){o=o||{};if(!o.id)o.id=_uid();if(!o.status)o.status=(o.key_results&&o.key_results.length)?'正在处理':'待办';if(o.skip_reason==null)o.skip_reason='';if(!o.key_results)o.key_results=[];if(o.deadline==null)o.deadline='';if(!o.create_time)o.create_time=_today();if(!o.progress_log)o.progress_log=[];if(o.updated_at==null)o.updated_at=0;return o}
-function _normAgile(o){o=o||{};if(!o.id)o.id=_uid();o.text=String(o.text==null?'':o.text).trim().slice(0,15);if(o.created_at==null)o.created_at='';if(o.updated_at==null)o.updated_at=0;return o}
+function _normAgile(o){o=o||{};if(!o.id)o.id=_uid();o.text=String(o.text==null?'':o.text).trim().slice(0,15);if(o.created_at==null)o.created_at='';if(o.updated_at==null)o.updated_at=0;if(o.remind_at!=null&&!(+o.remind_at>0))delete o.remind_at;return o}
 /* 当前时间戳（毫秒），用于"谁更新谁赢"的合并判断 */
 function _now(){return Date.now()}
 /* 记录一条删除墓碑 */
@@ -171,7 +199,9 @@ function render(){
             +'<button onclick="cancelEdit()">取消</button></div></div>';
       }else{
         html+='<div class="top"><div class="text">'+esc(t.text)+'</div></div>'
-            +'<div class="meta"><span>🕒 添加时间 '+esc(t.created_at||'无记录')+'</span></div>'
+            +'<div class="meta"><span>🕒 添加时间 '+esc(t.created_at||'无记录')+'</span>'
+            +(t.remind_at?'<span>⏰ '+_fmtTs(t.remind_at)+'</span>':'')
+            +'</div>'
             +'<div class="acts"><button class="b" onclick="editAgile(\''+t.id+'\')">编辑</button>'
             +'<button class="d" onclick="delAgile(\''+t.id+'\')">删除</button></div>';
       }
@@ -194,6 +224,7 @@ function render(){
             +'<span class="badge" style="background:'+(SC[o.status]||'#6b7280')+'">'+esc(o.status)+'</span></div>'
             +'<div class="meta"><span>🕒 创建 '+esc(o.create_time||'')+'</span>'
             +(o.deadline?'<span>📅 '+esc(o.deadline)+'</span>':'')
+            +(o.remind_at?'<span>⏰ '+_fmtTs(o.remind_at)+'</span>':'')
             +'<span>进度 '+progress(o)+'%</span></div>';
         var k=o.key_results||[];
         if(k.length){html+='<div class="kr">关键指标：'+k.map(function(x){return esc(x.name)+' '+x.progress+'%'}).join('、')+'</div>'}
@@ -224,6 +255,67 @@ function saveTrack(id){var v=document.getElementById('ei').value.trim();if(!v){t
 function delAgile(id){api('/api/agile/'+encodeURIComponent(id),'DELETE').then(load).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'删除失败')})}
 function delTrack(id){api('/api/tracking/'+encodeURIComponent(id),'DELETE').then(load).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'删除失败')})}
 function refresh(){load().then(render).then(function(){syncNow(true)}).catch(function(){})}
+
+/* ===== 提醒：浮球 → 选任务 → 选时间（提醒时间随任务一起云同步）===== */
+function _pad2(n){return (n<10?'0':'')+n}
+function _fmtTs(ts){var d=new Date(+ts);return d.getFullYear()+'-'+_pad2(d.getMonth()+1)+'-'+_pad2(d.getDate())+' '+_pad2(d.getHours())+':'+_pad2(d.getMinutes())}
+function _toLocalInput(d){return d.getFullYear()+'-'+_pad2(d.getMonth()+1)+'-'+_pad2(d.getDate())+'T'+_pad2(d.getHours())+':'+_pad2(d.getMinutes())}
+function _rmSelected(){
+  var v=document.getElementById('rmTask').value||'',i=v.indexOf(':');
+  return i<0?null:{type:v.slice(0,i),id:v.slice(i+1)};
+}
+function _rmFind(sel){
+  if(!sel)return null;
+  var arr=sel.type==='agile'?S.agile:S.track;
+  for(var i=0;i<arr.length;i++)if(arr[i].id===sel.id)return arr[i];
+  return null;
+}
+function openRemind(){
+  var html='';
+  S.agile.forEach(function(t){html+='<option value="agile:'+t.id+'">[敏捷] '+esc(t.text)+'</option>'});
+  S.track.forEach(function(o){html+='<option value="track:'+o.id+'">[长期] '+esc(o.name)+'</option>'});
+  if(!html)html='<option value="">（暂无任务，请先添加）</option>';
+  var sel=document.getElementById('rmTask');sel.innerHTML=html;
+  var want=S.tab+':'+((S.tab==='agile'?S.agile[0]:S.track[0])||{id:''}).id;
+  for(var i=0;i<sel.options.length;i++)if(sel.options[i].value===want){sel.selectedIndex=i;break}
+  document.getElementById('rmNow').textContent='当前时间 '+_fmtTs(Date.now());
+  onRmTaskChange();
+  document.getElementById('remindSheet').className='sheet on';
+}
+function onRmTaskChange(){
+  var t=_rmFind(_rmSelected());
+  document.getElementById('rmTime').value=_toLocalInput(new Date(t&&t.remind_at?+t.remind_at:Date.now()+3600000));
+}
+function quickRemind(k){
+  var d=new Date();
+  if(k===60)d=new Date(Date.now()+3600000);
+  else if(k==='tonight'){d.setHours(20,0,0,0);if(d.getTime()<=Date.now())d.setDate(d.getDate()+1)}
+  else{d.setDate(d.getDate()+1);d.setHours(9,0,0,0)}
+  document.getElementById('rmTime').value=_toLocalInput(d);
+}
+function closeRemind(){document.getElementById('remindSheet').className='sheet'}
+function _setRemind(ts){
+  var sel=_rmSelected();
+  if(!sel||!sel.id){toast('请先选择任务');return Promise.resolve()}
+  var key=sel.type==='agile'?KEY_AGILE:KEY_TRACK,arr=_read(key),hit=null;
+  for(var i=0;i<arr.length;i++)if(arr[i].id===sel.id){hit=arr[i];break}
+  if(!hit){toast('未找到该任务，请先同步');return Promise.resolve()}
+  if(ts>0)hit.remind_at=ts;else delete hit.remind_at;
+  hit.updated_at=_now();
+  _write(key,arr);
+  toast(ts>0?'提醒已设为 '+_fmtTs(ts):'已清除提醒');
+  closeRemind();
+  return load().then(render).then(function(){return syncNow(true)});
+}
+function saveRemind(){
+  var v=document.getElementById('rmTime').value;
+  if(!v){toast('请选择提醒时间');return}
+  var ts=new Date(v).getTime();
+  if(!(ts>0)){toast('提醒时间不正确');return}
+  if(ts<=Date.now()&&!confirm('这个时间已经过去了，仍然保存吗？'))return;
+  _setRemind(ts);
+}
+function clearRemind(){_setRemind(0)}
 
 /* ===== 与电脑手动同步：导出/导入 JSON ===== */
 function _download(filename,obj){

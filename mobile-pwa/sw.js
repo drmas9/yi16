@@ -1,5 +1,5 @@
 /* Service Worker：缓存全部静态资源，断网也能打开 */
-var CACHE = 'coldstart-mobile-v3';
+var CACHE = 'coldstart-mobile-v4';
 var ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
