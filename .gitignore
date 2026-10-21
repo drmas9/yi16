@@ -1,0 +1,12 @@
+next_task.txt
+__pycache__/
+*.pyc
+dist/
+build/
+*.spec
+# 云同步：含令牌与本机数据，禁止提交到仓库
+sync_config.json
+deleted_agile.json
+deleted_track.json
+agile_tasks.json
+okr_data.json
