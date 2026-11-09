@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>冷启动器 · 任务</title>
+<title>冷启动器 · 敏捷任务</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#1b1b1f">
 <link rel="apple-touch-icon" href="./icon-192.png">
@@ -15,37 +15,25 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:15px}
 header{position:sticky;top:0;z-index:10;background:var(--bg);padding:12px 14px 8px;border-bottom:1px solid var(--line)}
-h1{font-size:17px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline}
+h1{font-size:17px;margin:0 0 8px;display:flex;justify-content:space-between;align-items:baseline}
 h1 small{font-size:11px;color:var(--sec);font-weight:400}
-.tabs{display:flex;gap:8px}
-.tab{flex:1;text-align:center;padding:9px 0;border-radius:10px;background:var(--card2);color:var(--sec);border:1px solid transparent}
-.tab.on{background:#2f2f38;color:#fff;border-color:var(--line)}
-.sync{display:flex;gap:6px;margin-top:8px}
+.sync{display:flex;gap:6px}
 .sync button{flex:1;font-size:12px;padding:6px 0;background:var(--card2);color:var(--sec)}
 main{padding:12px 14px 96px}
 .row{background:var(--card);border-radius:12px;padding:11px 12px;margin-bottom:9px;border:1px solid #33333b}
 .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
 .text{flex:1;word-break:break-word;line-height:1.35}
 .meta{font-size:11px;color:var(--sec);margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
-.badge{font-size:11px;padding:2px 8px;border-radius:20px;color:#fff;white-space:nowrap}
 .acts{display:flex;gap:6px;margin-top:9px}
 button{font-family:inherit;font-size:13px;border:0;border-radius:9px;padding:7px 14px;background:#3a3a46;color:var(--fg)}
 button.p{background:var(--green);color:#08281c;font-weight:600}
 button.b{background:var(--blue);color:#fff}
 button.d{background:#3a2b2b;color:var(--red)}
-input,select{font-family:inherit;font-size:15px;width:100%;padding:9px 10px;border-radius:9px;border:1px solid var(--line);background:#1f1f25;color:var(--fg)}
+input{font-family:inherit;font-size:15px;width:100%;padding:9px 10px;border-radius:9px;border:1px solid var(--line);background:#1f1f25;color:var(--fg)}
 .edit{margin-top:9px;display:flex;flex-direction:column;gap:8px}
 .line{display:flex;gap:8px}
-.kr{font-size:12px;color:var(--sec);margin-top:5px;line-height:1.5}
 .addbar{position:fixed;left:0;right:0;bottom:0;background:#16161a;border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:8px}
 .addbar input{flex:1}
-.fab{position:fixed;right:14px;bottom:74px;z-index:12;width:52px;height:52px;border-radius:50%;background:var(--blue);color:#fff;font-size:22px;line-height:52px;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,.45);padding:0}
-.sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:none;align-items:flex-end}
-.sheet.on{display:flex}
-.sheet .card{width:100%;background:var(--card);border-radius:16px 16px 0 0;padding:16px 14px 20px;display:flex;flex-direction:column;gap:10px;max-height:86vh;overflow:auto}
-.sheet h3{margin:0 0 2px;font-size:15px}
-.quick{display:flex;gap:6px;flex-wrap:wrap}
-.quick button{flex:1;font-size:12px;padding:7px 0;background:#33333d;color:var(--fg);white-space:nowrap}
 .hint{font-size:12px;color:var(--sec);line-height:1.4}
 .empty{color:var(--sec);text-align:center;padding:44px 0;font-size:13px}
 .panel{display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:10px;background:var(--card2);border-radius:10px}
@@ -57,17 +45,10 @@ input,select{font-family:inherit;font-size:15px;width:100%;padding:9px 10px;bord
 </head>
 <body>
 <header>
-<h1>冷启动器 · 任务 <small id="stat"></small></h1>
-<div class="tabs">
-<div class="tab on" id="tabAgile" onclick="switchTab('agile')">敏捷任务</div>
-<div class="tab" id="tabTrack" onclick="switchTab('track')">长期任务</div>
-</div>
+<h1>冷启动器 · 敏捷任务 <small id="stat"></small></h1>
 <div class="sync">
-<button onclick="exportAgile()">导出敏捷</button>
-<button onclick="exportTrack()">导出长期</button>
-<button onclick="document.getElementById('imp').click()">导入 JSON</button>
+<button onclick="syncNow(false)">立即同步</button>
 <button onclick="toggleSyncPanel()">同步设置</button>
-<input id="imp" type="file" accept=".json,application/json" multiple style="display:none" onchange="importFiles(this.files)">
 </div>
 <div id="syncPanel" class="panel" style="display:none">
 <input id="cfgToken" placeholder="GitHub 令牌（粘贴一次，自动记住）">
@@ -75,289 +56,105 @@ input,select{font-family:inherit;font-size:15px;width:100%;padding:9px 10px;bord
 <input id="cfgRepo" placeholder="仓库名" value="yi16"></div>
 <div class="line"><input id="cfgPath" placeholder="数据文件路径" value="data/sync.json">
 <input id="cfgBranch" placeholder="分支" value="main"></div>
-<div class="line"><button class="p" onclick="saveCfg()">保存并同步</button>
-<button class="b" onclick="syncNow(false)">立即同步</button></div>
+<div class="line"><button class="p" onclick="saveCfg()">保存并同步</button></div>
 <div id="syncStatus" class="meta"></div>
 </div>
 </header>
 <main id="list"></main>
 <div class="addbar">
-<input id="addInput" placeholder="输入任务，回车添加" onkeydown="if(event.key==='Enter')doAdd()">
+<input id="addInput" placeholder="输入敏捷任务，回车添加" onkeydown="if(event.key==='Enter')doAdd()">
 <button class="p" onclick="doAdd()">添加</button>
-</div>
-<button class="fab" onclick="openRemind()">⏰</button>
-<div id="remindSheet" class="sheet" onclick="if(event.target===this)closeRemind()">
-<div class="card">
-<h3>设置任务提醒</h3>
-<div class="hint">到点后由飞书群机器人推送锁屏提醒</div>
-<select id="rmTask" onchange="onRmTaskChange()"></select>
-<input id="rmTime" type="datetime-local">
-<div class="quick">
-<button onclick="quickRemind(60)">1 小时后</button>
-<button onclick="quickRemind('tonight')">今晚 20:00</button>
-<button onclick="quickRemind('morning')">明早 9:00</button>
-</div>
-<div class="hint" id="rmNow"></div>
-<div class="line">
-<button class="p" onclick="saveRemind()">保存提醒</button>
-<button onclick="clearRemind()">清除</button>
-<button onclick="closeRemind()">取消</button>
-</div>
-</div>
 </div>
 <div id="toast"></div>
 <script>
-/* ===== 数据层：全部保存在手机本地 localStorage，不再依赖电脑/网络 ===== */
-var KEY_AGILE='coldstart_agile_v1', KEY_TRACK='coldstart_track_v1';
+/* ===== 数据层：敏捷任务存在手机本地 localStorage，并自动与 GitHub 数据箱合并 ===== */
+var KEY_AGILE='coldstart_agile_v1';
 /* 删除墓碑：记录被删掉的 id 与删除时间，避免另一端同步时把已删的任务又带回来 */
-var KEY_DEL_A='coldstart_del_agile_v1', KEY_DEL_T='coldstart_del_track_v1';
+var KEY_DEL_A='coldstart_del_agile_v1';
 /* 同步配置：GitHub 数据箱的地址与令牌 */
 var KEY_CFG='coldstart_sync_cfg_v1';
-var S={tab:'agile',agile:[],track:[],edit:null};
+var S={agile:[],edit:null};
 
 function _read(key){try{var v=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(v)?v:[]}catch(e){return []}}
 function _write(key,arr){localStorage.setItem(key,JSON.stringify(arr))}
 function _uid(){return (self.crypto&&crypto.randomUUID)?crypto.randomUUID().replace(/-/g,'').slice(0,12):Math.random().toString(16).slice(2,14)}
 function _pad(n){return (n<10?'0':'')+n}
 function _nowStr(){var d=new Date();return d.getFullYear()+'-'+_pad(d.getMonth()+1)+'-'+_pad(d.getDate())+' '+_pad(d.getHours())+':'+_pad(d.getMinutes())}
-function _today(){var d=new Date();return d.getFullYear()+'-'+_pad(d.getMonth()+1)+'-'+_pad(d.getDate())}
-/* 与桌面端 _normalize_tracking_obj 保持一致：补齐缺失字段 */
-function _normTrack(o){o=o||{};if(!o.id)o.id=_uid();if(!o.status)o.status=(o.key_results&&o.key_results.length)?'正在处理':'待办';if(o.skip_reason==null)o.skip_reason='';if(!o.key_results)o.key_results=[];if(o.deadline==null)o.deadline='';if(!o.create_time)o.create_time=_today();if(!o.progress_log)o.progress_log=[];if(o.updated_at==null)o.updated_at=0;return o}
-function _normAgile(o){o=o||{};if(!o.id)o.id=_uid();o.text=String(o.text==null?'':o.text).trim().slice(0,15);if(o.created_at==null)o.created_at='';if(o.updated_at==null)o.updated_at=0;if(o.remind_at!=null&&!(+o.remind_at>0))delete o.remind_at;return o}
-/* 当前时间戳（毫秒），用于"谁更新谁赢"的合并判断 */
+function _normAgile(o){o=o||{};if(!o.id)o.id=_uid();o.text=String(o.text==null?'':o.text).trim().slice(0,15);if(o.created_at==null)o.created_at='';if(o.updated_at==null)o.updated_at=0;return o}
 function _now(){return Date.now()}
-/* 记录一条删除墓碑 */
 function _tombstone(key,id){var d=_read(key);d.push({id:id,deleted_at:_now()});_write(key,d)}
 
-/* 本地版 api()：签名与原来的网络版完全一致，界面代码无需改动 */
+/* 本地 api()：签名与桌面端接口一致，界面代码无需关心存储细节 */
 function api(path,method,body){
   method=(method||'GET').toUpperCase(); body=body||{};
-  var parts=path.replace(/^\//,'').split('/');       /* ['api','agile'] 或 ['api','agile','<id>'] */
+  var parts=path.replace(/^\//,'').split('/');
   var kind=parts[1], id=parts[2]!=null?decodeURIComponent(parts[2]):null;
-  var key=kind==='agile'?KEY_AGILE:KEY_TRACK;
-  var STATUSES=['待办','正在处理','完成','跳过'];
   return new Promise(function(resolve,reject){
-    if(kind!=='agile'&&kind!=='tracking'){return reject({error:'接口不存在'})}
-    var arr=_read(key);
+    if(kind!=='agile'){return reject({error:'接口不存在'})}
+    var arr=_read(KEY_AGILE);
     if(method==='GET'){return resolve(arr)}
-
     if(method==='POST'){
-      var text=String(body.text!=null?body.text:body.name).trim();
+      var text=String(body.text!=null?body.text:'').trim();
       if(!text)return reject({error:'内容不能为空'});
-      var item;
-      if(kind==='agile'){item={id:_uid(),text:text.slice(0,15),created_at:_nowStr()}}
-      else{item=_normTrack({id:_uid(),name:text,status:'待办',skip_reason:'',key_results:[],deadline:String(body.deadline||'').trim(),create_time:_today(),progress_log:[{date:_today(),value:100.0}]})}
-      item.updated_at=_now();
-      arr.push(item);_write(key,arr);return resolve(item);
+      var item={id:_uid(),text:text.slice(0,15),created_at:_nowStr(),updated_at:_now()};
+      arr.push(item);_write(KEY_AGILE,arr);return resolve(item);
     }
-
     if(method==='PUT'){
       for(var i=0;i<arr.length;i++){
         if(arr[i].id===id){
-          if(kind==='agile'){
-            var t=String(body.text||'').trim();if(!t)return reject({error:'任务内容不能为空'});
-            arr[i].text=t.slice(0,15);
-          }else{
-            if(String(body.name||'').trim())arr[i].name=String(body.name).trim();
-            if(body.status!=null&&STATUSES.indexOf(String(body.status))>=0)arr[i].status=String(body.status);
-            if(body.deadline!=null)arr[i].deadline=String(body.deadline).trim();
-            if(body.skip_reason!=null)arr[i].skip_reason=String(body.skip_reason).trim();
-          }
-          arr[i].updated_at=_now();
-          _write(key,arr);return resolve(arr[i]);
+          var t=String(body.text||'').trim();if(!t)return reject({error:'任务内容不能为空'});
+          arr[i].text=t.slice(0,15);arr[i].updated_at=_now();
+          _write(KEY_AGILE,arr);return resolve(arr[i]);
         }
       }
       return reject({error:'未找到该任务'});
     }
-
     if(method==='DELETE'){
       var out=arr.filter(function(x){return x.id!==id});
-      if(out.length<arr.length)_tombstone(kind==='agile'?KEY_DEL_A:KEY_DEL_T,id);
-      _write(key,out);return resolve({ok:out.length<arr.length});
+      if(out.length<arr.length)_tombstone(KEY_DEL_A,id);
+      _write(KEY_AGILE,out);return resolve({ok:out.length<arr.length});
     }
     reject({error:'不支持的请求'});
   });
 }
 
-/* ===== 界面层：与原手机端页面保持一致 ===== */
+/* ===== 界面层 ===== */
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
-function progress(o){var k=o.key_results||[];if(!k.length)return 100;var a=0;for(var i=0;i<k.length;i++){a+=(+k[i].progress||0)}a=a/k.length;return Math.round((100-a*1.25)*10)/10}
-var SC={'待办':'#6b7280','正在处理':'#4a90ff','完成':'#34d399','跳过':'#f87171'};
 function toast(msg){var d=document.getElementById('toast');d.textContent=msg;d.className='show';clearTimeout(d._t);d._t=setTimeout(function(){d.className=''},1800)}
-function switchTab(t){S.tab=t;S.edit=null;document.getElementById('tabAgile').className='tab'+(t==='agile'?' on':'');document.getElementById('tabTrack').className='tab'+(t==='track'?' on':'');document.getElementById('addInput').placeholder=(t==='agile'?'输入敏捷任务，回车添加':'输入长期目标，回车添加');render()}
-function load(){return Promise.all([api('/api/agile').then(function(d){S.agile=d}),api('/api/tracking').then(function(d){S.track=d})])}
+function load(){return api('/api/agile').then(function(d){S.agile=d})}
 function render(){
   var el=document.getElementById('list'),html='';
-  if(S.tab==='agile'){
-    if(!S.agile.length){html='<div class="empty">还没有敏捷任务</div>'}
-    S.agile.forEach(function(t){
-      var ed=S.edit&&S.edit.type==='agile'&&S.edit.id===t.id;
-      html+='<div class="row">';
-      if(ed){
-        html+='<div class="edit"><input id="ei" maxlength="15" value="'+esc(t.text)+'">'
-            +'<div class="line"><button class="p" onclick="saveAgile(\''+t.id+'\')">保存</button>'
-            +'<button onclick="cancelEdit()">取消</button></div></div>';
-      }else{
-        html+='<div class="top"><div class="text">'+esc(t.text)+'</div></div>'
-            +'<div class="meta"><span>🕒 添加时间 '+esc(t.created_at||'无记录')+'</span>'
-            +(t.remind_at?'<span>⏰ '+_fmtTs(t.remind_at)+'</span>':'')
-            +'</div>'
-            +'<div class="acts"><button class="b" onclick="editAgile(\''+t.id+'\')">编辑</button>'
-            +'<button class="d" onclick="delAgile(\''+t.id+'\')">删除</button></div>';
-      }
-      html+='</div>';
-    });
-  }else{
-    if(!S.track.length){html='<div class="empty">还没有长期任务</div>'}
-    S.track.forEach(function(o){
-      var ed=S.edit&&S.edit.type==='track'&&S.edit.id===o.id;
-      html+='<div class="row">';
-      if(ed){
-        var opts=['待办','正在处理','完成','跳过'].map(function(s){return '<option'+(s===o.status?' selected':'')+'>'+s+'</option>'}).join('');
-        html+='<div class="edit"><input id="ei" value="'+esc(o.name)+'">'
-            +'<div class="line"><select id="es">'+opts+'</select></div>'
-            +'<input id="ed" placeholder="截止日期（可留空）" value="'+esc(o.deadline||'')+'">'
-            +'<div class="line"><button class="p" onclick="saveTrack(\''+o.id+'\')">保存</button>'
-            +'<button onclick="cancelEdit()">取消</button></div></div>';
-      }else{
-        html+='<div class="top"><div class="text">'+esc(o.name)+'</div>'
-            +'<span class="badge" style="background:'+(SC[o.status]||'#6b7280')+'">'+esc(o.status)+'</span></div>'
-            +'<div class="meta"><span>🕒 创建 '+esc(o.create_time||'')+'</span>'
-            +(o.deadline?'<span>📅 '+esc(o.deadline)+'</span>':'')
-            +(o.remind_at?'<span>⏰ '+_fmtTs(o.remind_at)+'</span>':'')
-            +'<span>进度 '+progress(o)+'%</span></div>';
-        var k=o.key_results||[];
-        if(k.length){html+='<div class="kr">关键指标：'+k.map(function(x){return esc(x.name)+' '+x.progress+'%'}).join('、')+'</div>'}
-        html+='<div class="acts"><button class="b" onclick="editTrack(\''+o.id+'\')">编辑</button>'
-            +'<button class="d" onclick="delTrack(\''+o.id+'\')">删除</button></div>';
-      }
-      html+='</div>';
-    });
-  }
+  if(!S.agile.length){html='<div class="empty">还没有敏捷任务</div>'}
+  S.agile.forEach(function(t){
+    var ed=S.edit===t.id;
+    html+='<div class="row">';
+    if(ed){
+      html+='<div class="edit"><input id="ei" maxlength="15" value="'+esc(t.text)+'">'
+          +'<div class="line"><button class="p" onclick="saveAgile(\''+t.id+'\')">保存</button>'
+          +'<button onclick="cancelEdit()">取消</button></div></div>';
+    }else{
+      html+='<div class="top"><div class="text">'+esc(t.text)+'</div></div>'
+          +'<div class="meta"><span>🕒 添加时间 '+esc(t.created_at||'无记录')+'</span></div>'
+          +'<div class="acts"><button class="b" onclick="editAgile(\''+t.id+'\')">编辑</button>'
+          +'<button class="d" onclick="delAgile(\''+t.id+'\')">删除</button></div>';
+    }
+    html+='</div>';
+  });
   el.innerHTML=html;
-  document.getElementById('stat').textContent='敏捷 '+S.agile.length+' · 长期 '+S.track.length;
+  document.getElementById('stat').textContent='共 '+S.agile.length+' 条';
   if(S.edit){setTimeout(function(){var x=document.getElementById('ei');if(x){x.focus()}},0)}
 }
 function doAdd(){
   var inp=document.getElementById('addInput'),v=inp.value.trim();
   if(!v)return;
-  var p=S.tab==='agile'?api('/api/agile','POST',{text:v}):api('/api/tracking','POST',{name:v});
-  p.then(function(){inp.value='';return load()}).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'添加失败')});
+  api('/api/agile','POST',{text:v}).then(function(){inp.value='';return load()}).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'添加失败')});
 }
-function editAgile(id){S.edit={type:'agile',id:id};render()}
-function editTrack(id){S.edit={type:'track',id:id};render()}
+function editAgile(id){S.edit=id;render()}
 function cancelEdit(){S.edit=null;render()}
 function saveAgile(id){var v=document.getElementById('ei').value.trim();if(!v)return;
   api('/api/agile/'+encodeURIComponent(id),'PUT',{text:v}).then(function(){S.edit=null;return load()}).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'保存失败')})}
-function saveTrack(id){var v=document.getElementById('ei').value.trim();if(!v){toast('名称不能为空');return}
-  var st=document.getElementById('es').value,dl=document.getElementById('ed').value.trim();
-  api('/api/tracking/'+encodeURIComponent(id),'PUT',{name:v,status:st,deadline:dl}).then(function(){S.edit=null;return load()}).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'保存失败')})}
 function delAgile(id){api('/api/agile/'+encodeURIComponent(id),'DELETE').then(load).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'删除失败')})}
-function delTrack(id){api('/api/tracking/'+encodeURIComponent(id),'DELETE').then(load).then(render).then(function(){syncNow(true)}).catch(function(e){toast((e&&e.error)||'删除失败')})}
 function refresh(){load().then(render).then(function(){syncNow(true)}).catch(function(){})}
-
-/* ===== 提醒：浮球 → 选任务 → 选时间（提醒时间随任务一起云同步）===== */
-function _pad2(n){return (n<10?'0':'')+n}
-function _fmtTs(ts){var d=new Date(+ts);return d.getFullYear()+'-'+_pad2(d.getMonth()+1)+'-'+_pad2(d.getDate())+' '+_pad2(d.getHours())+':'+_pad2(d.getMinutes())}
-function _toLocalInput(d){return d.getFullYear()+'-'+_pad2(d.getMonth()+1)+'-'+_pad2(d.getDate())+'T'+_pad2(d.getHours())+':'+_pad2(d.getMinutes())}
-function _rmSelected(){
-  var v=document.getElementById('rmTask').value||'',i=v.indexOf(':');
-  return i<0?null:{type:v.slice(0,i),id:v.slice(i+1)};
-}
-function _rmFind(sel){
-  if(!sel)return null;
-  var arr=sel.type==='agile'?S.agile:S.track;
-  for(var i=0;i<arr.length;i++)if(arr[i].id===sel.id)return arr[i];
-  return null;
-}
-function openRemind(){
-  var html='';
-  S.agile.forEach(function(t){html+='<option value="agile:'+t.id+'">[敏捷] '+esc(t.text)+'</option>'});
-  S.track.forEach(function(o){html+='<option value="track:'+o.id+'">[长期] '+esc(o.name)+'</option>'});
-  if(!html)html='<option value="">（暂无任务，请先添加）</option>';
-  var sel=document.getElementById('rmTask');sel.innerHTML=html;
-  var want=S.tab+':'+((S.tab==='agile'?S.agile[0]:S.track[0])||{id:''}).id;
-  for(var i=0;i<sel.options.length;i++)if(sel.options[i].value===want){sel.selectedIndex=i;break}
-  document.getElementById('rmNow').textContent='当前时间 '+_fmtTs(Date.now());
-  onRmTaskChange();
-  document.getElementById('remindSheet').className='sheet on';
-}
-function onRmTaskChange(){
-  var t=_rmFind(_rmSelected());
-  document.getElementById('rmTime').value=_toLocalInput(new Date(t&&t.remind_at?+t.remind_at:Date.now()+3600000));
-}
-function quickRemind(k){
-  var d=new Date();
-  if(k===60)d=new Date(Date.now()+3600000);
-  else if(k==='tonight'){d.setHours(20,0,0,0);if(d.getTime()<=Date.now())d.setDate(d.getDate()+1)}
-  else{d.setDate(d.getDate()+1);d.setHours(9,0,0,0)}
-  document.getElementById('rmTime').value=_toLocalInput(d);
-}
-function closeRemind(){document.getElementById('remindSheet').className='sheet'}
-function _setRemind(ts){
-  var sel=_rmSelected();
-  if(!sel||!sel.id){toast('请先选择任务');return Promise.resolve()}
-  var key=sel.type==='agile'?KEY_AGILE:KEY_TRACK,arr=_read(key),hit=null;
-  for(var i=0;i<arr.length;i++)if(arr[i].id===sel.id){hit=arr[i];break}
-  if(!hit){toast('未找到该任务，请先同步');return Promise.resolve()}
-  if(ts>0)hit.remind_at=ts;else delete hit.remind_at;
-  hit.updated_at=_now();
-  _write(key,arr);
-  toast(ts>0?'提醒已设为 '+_fmtTs(ts):'已清除提醒');
-  closeRemind();
-  return load().then(render).then(function(){return syncNow(true)});
-}
-function saveRemind(){
-  var v=document.getElementById('rmTime').value;
-  if(!v){toast('请选择提醒时间');return}
-  var ts=new Date(v).getTime();
-  if(!(ts>0)){toast('提醒时间不正确');return}
-  if(ts<=Date.now()&&!confirm('这个时间已经过去了，仍然保存吗？'))return;
-  _setRemind(ts);
-}
-function clearRemind(){_setRemind(0)}
-
-/* ===== 与电脑手动同步：导出/导入 JSON ===== */
-function _download(filename,obj){
-  var blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;
-  document.body.appendChild(a);a.click();document.body.removeChild(a);
-  setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
-}
-function exportAgile(){_download('agile_tasks.json',_read(KEY_AGILE));toast('已导出 agile_tasks.json')}
-function exportTrack(){_download('okr_data.json',_read(KEY_TRACK));toast('已导出 okr_data.json')}
-/* 导入：按 id 合并（同 id 覆盖，新 id 追加），不删除手机现有数据 */
-function _merge(key,items){
-  var arr=_read(key),idx={},n=0;
-  arr.forEach(function(x,i){idx[x.id]=i});
-  items.forEach(function(raw){
-    var it=key===KEY_AGILE?_normAgile(raw):_normTrack(raw);
-    if(!it.id||(key===KEY_AGILE&&!it.text))return;
-    if(idx[it.id]!=null){arr[idx[it.id]]=it}else{idx[it.id]=arr.length;arr.push(it)}
-    n++;
-  });
-  _write(key,arr);return n;
-}
-function importFiles(files){
-  if(!files||!files.length)return;
-  var jobs=[].map.call(files,function(f){return f.text().then(function(txt){return {name:f.name,data:JSON.parse(txt)}})});
-  Promise.all(jobs).then(function(list){
-    var na=0,nt=0;
-    list.forEach(function(f){
-      var d=f.data;
-      if(Array.isArray(d)){                      /* 桌面端原始文件 */
-        if(f.name.toLowerCase().indexOf('okr')>=0){nt+=_merge(KEY_TRACK,d)}
-        else if(f.name.toLowerCase().indexOf('agile')>=0){na+=_merge(KEY_AGILE,d)}
-        else na+=_merge(KEY_AGILE,d);
-      }else if(d&&typeof d==='object'){
-        if(Array.isArray(d.agile)){na+=_merge(KEY_AGILE,d.agile)}
-        if(Array.isArray(d.track)){nt+=_merge(KEY_TRACK,d.track)}
-      }
-    });
-    return load().then(render).then(function(){toast('导入完成：敏捷 '+na+' 条，长期 '+nt+' 条')});
-  }).catch(function(){toast('导入失败，请检查 JSON 文件')});
-  document.getElementById('imp').value='';
-}
 
 /* ===== 自动同步：以 GitHub 仓库当"数据箱"，有网即自动合并 ===== */
 function _cfg(){try{var c=JSON.parse(localStorage.getItem(KEY_CFG)||'{}');return c&&typeof c==='object'?c:{}}catch(e){return {}}}
@@ -398,43 +195,45 @@ function _snapDel(list){
 }
 function _setSyncStatus(t){var el=document.getElementById('syncStatus');if(el)el.textContent=t}
 var _syncing=false;
-/* 同步一次：拉取云端 → 与本地合并 → 回推云端 */
+/* 同步一次：拉取云端 → 与本地合并 → 回推云端
+   注意：OKR（track）由电脑端维护，这里原样带回，不做任何修改 */
 function syncNow(silent){
   var cfg=_cfg();
-  if(!cfg.token){if(!silent)toast('请先点"同步设置"填写令牌');return Promise.resolve()}
+  if(!cfg.token){if(!silent)toast('请先在"同步设置"里填写令牌');return Promise.resolve()}
   if(_syncing)return Promise.resolve();
   _syncing=true;_setSyncStatus('同步中…');
   var base='https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+cfg.path;
   var headers={'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json'};
   function readRemote(){
     return fetch(base+'?ref='+encodeURIComponent(cfg.branch)+'&_='+Date.now(),{headers:headers}).then(function(r){
-      if(r.status===404)return {data:null,sha:null};      /* 首次：云端还没有文件 */
+      if(r.status===404)return {data:null,sha:null};
       if(!r.ok)throw new Error('读取失败 HTTP '+r.status);
       return r.json().then(function(j){return {data:JSON.parse(_b64utf8(j.content||'')),sha:j.sha}});
     });
   }
   function writeRemote(doc,sha){
     var body={message:'sync '+new Date().toISOString(),content:_utf8b64(JSON.stringify(doc)),branch:cfg.branch};
-    if(sha)body.sha=sha;                                  /* 有 sha 表示更新已有文件 */
+    if(sha)body.sha=sha;
     return fetch(base,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},headers),body:JSON.stringify(body)});
   }
   return readRemote().then(function(rem){
     var r=rem.data||{};
     var a=_mergeLists(_read(KEY_AGILE),r.agile,_read(KEY_DEL_A),r.deleted_agile);
-    var t=_mergeLists(_read(KEY_TRACK),r.track,_read(KEY_DEL_T),r.deleted_track);
     _write(KEY_AGILE,a.items);_write(KEY_DEL_A,a.deleted);
-    _write(KEY_TRACK,t.items);_write(KEY_DEL_T,t.deleted);
-    var remote={agile:r.agile||[],track:r.track||[],deleted_agile:r.deleted_agile||[],deleted_track:r.deleted_track||[]};
-    /* 只有合并结果和云端确实不同才回推，避免每次同步都产生一条无意义的提交 */
-    var need=(_snapItems(a.items)!==_snapItems(remote.agile))
-          ||(_snapItems(t.items)!==_snapItems(remote.track))
-          ||(_snapDel(a.deleted)!==_snapDel(remote.deleted_agile))
-          ||(_snapDel(t.deleted)!==_snapDel(remote.deleted_track));
+    var remoteAgile=r.agile||[];
+    var need=(_snapItems(a.items)!==_snapItems(remoteAgile))||(_snapDel(a.deleted)!==_snapDel(r.deleted_agile));
     function done(msg){return load().then(render).then(function(){_setSyncStatus(msg+' '+new Date().toLocaleTimeString());if(!silent)toast(msg)})}
     if(!need)return done('已是最新');
-    var doc={agile:a.items,track:t.items,deleted_agile:a.deleted,deleted_track:t.deleted,version:+((r.version||0)+1),updated_at:_now()};
+    var doc={
+      agile:a.items,
+      track:r.track||[],                    /* 电脑端的 OKR，原样保留 */
+      deleted_agile:a.deleted,
+      deleted_track:r.deleted_track||[],    /* 电脑端的删除墓碑，原样保留 */
+      version:+((r.version||0)+1),
+      updated_at:_now()
+    };
     return writeRemote(doc,rem.sha).then(function(resp){
-      if(resp.status===409){_syncing=false;return syncNow(silent)}   /* 版本冲突：重来一次 */
+      if(resp.status===409){_syncing=false;return syncNow(silent)}
       if(!resp.ok)throw new Error('写入失败 HTTP '+resp.status);
       return done('已同步');
     });
@@ -462,13 +261,11 @@ function saveCfg(){
   _saveCfg(c);toast('已保存，开始同步');syncNow(false);
 }
 
-/* 首次进入即加载；每 6 秒静默刷新界面 */
+/* 首次进入即加载；同步在启动、回到前台、联网时各尝试一次 */
 load().then(render);
-setInterval(function(){if(!S.edit&&document.visibilityState==='visible')refresh()},6000);
-/* 有网时自动同步：启动后、回到前台时、以及每 30 秒各尝试一次 */
 syncNow(true);
 setInterval(function(){if(document.visibilityState==='visible')syncNow(true)},30000);
-document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')syncNow(true)});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'){refresh()}});
 window.addEventListener('online',function(){syncNow(true)});
 
 /* 注册 Service Worker，实现离线可用与“添加到主屏” */
